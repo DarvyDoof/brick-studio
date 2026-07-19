@@ -525,9 +525,7 @@ function meshCount(g) { let n = 0; g.traverse(o => { if (o.isMesh) n++; }); retu
 function makeGen(earcut) {
   const U = 20, PLATE = 8, WALL = 3.6, ROOF = 2.6;
   // Real LEGO nominal: 8mm pitch (U=20 LDU), Ø4.8mm stud (r=6 LDU), 1.8mm stud height.
-  // CLR trims the stud radius by ~0.05mm for an FDM-friendly clutch fit with real bricks.
-  const CLR = 0.125;
-  const SR = 6 - CLR, SH = 4.5;   // stud radius (clearance-trimmed) / height
+  const SR = 6, SH = 4.5;         // stud radius (Ø4.8mm) / height (1.8mm)
   const TR = 8, TW = 1.5, PR = 4;  // clutch tube outer / wall, thin rod radius
   const HR = 6, OV = 0.4, RC = 7.8, CBD = 1;   // bore radius, counterbore radius & depth
   const segFor = n => (n > 96 ? 16 : n > 40 ? 20 : n > 12 ? 26 : 32);
