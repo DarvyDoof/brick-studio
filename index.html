@@ -524,7 +524,10 @@ function meshCount(g) { let n = 0; g.traverse(o => { if (o.isMesh) n++; }); retu
    earcut triangulates the holed/curved faces (technic, arch, liftarm). */
 function makeGen(earcut) {
   const U = 20, PLATE = 8, WALL = 3.6, ROOF = 2.6;
-  const SR = 6, SH = 4;            // stud radius / height
+  // Real LEGO nominal: 8mm pitch (U=20 LDU), Ø4.8mm stud (r=6 LDU), 1.8mm stud height.
+  // CLR trims the stud radius by ~0.05mm for an FDM-friendly clutch fit with real bricks.
+  const CLR = 0.125;
+  const SR = 6 - CLR, SH = 4.5;   // stud radius (clearance-trimmed) / height
   const TR = 8, TW = 1.5, PR = 4;  // clutch tube outer / wall, thin rod radius
   const HR = 6, OV = 0.4, RC = 7.8, CBD = 1;   // bore radius, counterbore radius & depth
   const segFor = n => (n > 96 ? 16 : n > 40 ? 20 : n > 12 ? 26 : 32);
@@ -626,6 +629,27 @@ function makeGen(earcut) {
       if (sign > 0) g.triN(a, b, c, n, n, n); else g.triN(a, c, b, n, n, n);
     }
   };
+  // earcut a face in a constant-x plane; outline: [[z,y],...] CCW, sign ±1 = normal ±x
+  const faceX = (g, outline, xc, sign) => {
+    const flat = [];
+    for (const p of outline) flat.push(p[0], p[1]);
+    const idx = earcut(flat, null, 2);
+    const n = [sign, 0, 0], pt = k => [xc, flat[2*k+1], flat[2*k]];
+    for (let i = 0; i < idx.length; i += 3) {
+      const a = pt(idx[i]), b = pt(idx[i+1]), c = pt(idx[i+2]);
+      if (sign > 0) g.triN(a, c, b, n, n, n); else g.triN(a, b, c, n, n, n);
+    }
+  };
+  // extrude a (z,y) outline along x from xLo..xHi as a closed solid
+  const prismX = (g, outline, xLo, xHi) => {
+    const m = outline.length;
+    for (let i = 0; i < m; i++) {
+      const [z0, y0] = outline[i], [z1, y1] = outline[(i + 1) % m];
+      g.quad([xLo,y0,z0],[xHi,y0,z0],[xHi,y1,z1],[xLo,y1,z1]);
+    }
+    faceX(g, outline, xHi, +1);
+    faceX(g, outline, xLo, -1);
+  };
   const holeXY = (cx, cy, r, seg, cw) => {
     const o = [];
     for (let s = 0; s < seg; s++) { const a = 2*Math.PI*(cw ? -s : s)/seg; o.push([cx + r*Math.cos(a), cy + r*Math.sin(a)]); }
@@ -654,6 +678,19 @@ function makeGen(earcut) {
       if (face > 0) { g.triN(I[s], O[s], O[t], n,n,n); g.triN(I[s], O[t], I[t], n,n,n); }
       else          { g.triN(I[s], O[t], O[s], n,n,n); g.triN(I[s], I[t], O[t], n,n,n); }
     }
+  };
+  // filled disc in an x-y plane at z; face=+1 normal +z, -1 normal -z
+  const discZ = (g, cx, cy, r, z, seg, face) => {
+    const R = ringZ(cx, cy, r, z, seg), c = [cx, cy, z], n = [0, 0, face];
+    for (let s = 0; s < seg; s++) { const t = (s + 1) % seg;
+      if (face > 0) g.triN(c, R[s], R[t], n, n, n); else g.triN(c, R[t], R[s], n, n, n); }
+  };
+  // a stud protruding from a z-facing plane at z=zf, growing toward `dir` (±1)
+  const studZ = (g, cx, cy, zf, dir, seg) => {
+    const zin = zf - dir * OV, tip = zf + dir * SH;   // base buried in solid, tip outside
+    cylZ(g, cx, cy, SR, zin, tip, seg, false);
+    discZ(g, cx, cy, SR, tip, seg, dir);
+    discZ(g, cx, cy, SR, zin, seg, -dir);
   };
   // counterbored pin hole through z=±th: smooth bore + a recessed rim on each
   // face (the faces carry a hole of radius RC; this fills bore + both pockets).
@@ -774,16 +811,17 @@ function makeGen(earcut) {
     return g;
   }
   function bracket(L) {
-    const g = V(), P = PLATE, hx = L*U/2, hz = U/2;
-    const plate = rect(L, 1, 1, true);
-    for (let i = 0; i < plate.pos.length; i += 3) { g.pos.push(plate.pos[i], plate.pos[i+1], plate.pos[i+2]); g.nrm.push(plate.nrm[i], plate.nrm[i+1], plate.nrm[i+2]); }
-    const z0 = -hz - P, z1 = -hz + WALL*0.5, y0 = -2*P, y1 = P*0.5, bx = hx - 2;
-    g.quad([-bx,y0,z1],[bx,y0,z1],[bx,y1,z1],[-bx,y1,z1]);
-    g.quad([bx,y0,z0],[-bx,y0,z0],[-bx,y1,z0],[bx,y1,z0]);
-    g.quad([-bx,y0,z0],[-bx,y0,z1],[-bx,y1,z1],[-bx,y1,z0]);
-    g.quad([bx,y0,z1],[bx,y0,z0],[bx,y1,z0],[bx,y1,z1]);
-    g.quad([-bx,y1,z1],[bx,y1,z1],[bx,y1,z0],[-bx,y1,z0]);
-    g.quad([-bx,y0,z0],[bx,y0,z0],[bx,y0,z1],[-bx,y0,z1]);
+    // LEGO Bracket 1×L - L×2 "Down" (real part 44728 is the L=2 case):
+    // a horizontal L×1 plate (studs up) with an L×2 plate hanging off the back
+    // edge, studs facing outward. Built as one watertight L-prism plus studs.
+    L = Math.max(1, L);
+    const g = V(), seg = 24, P = PLATE, hx = L*U/2;
+    const zF = U/2, zB = -U/2, zW = zB + P, yBot = -2*U;   // plate front/back, wall inner, wall foot
+    const outline = [[zF,0],[zF,P],[zB,P],[zB,yBot],[zW,yBot],[zW,0]];
+    prismX(g, outline, -hx, hx);
+    addStuds(g, L, 1, hx, U/2, P, seg);                    // L studs on top, centred at z=0
+    for (let i = 0; i < L; i++) for (let k = 0; k < 2; k++) // L×2 studs on the outward (−z) down-face
+      studZ(g, -hx + U/2 + i*U, -U/2 - k*U, zB, -1, seg);
     return g;
   }
   return { build(type, p) {
