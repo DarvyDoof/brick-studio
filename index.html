@@ -190,6 +190,36 @@ aside > *, header > * { position: relative; z-index: 1; }
 .sw.active::after { content: ""; position: absolute; inset: -4px; border: 2.5px solid #fff; border-radius: 12px;
   box-shadow: 0 0 0 1px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.25); }
 
+/* ---------- iOS sliders (custom brick) ---------- */
+.field { padding: 6px 8px 12px; }
+.field label {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 13px; font-weight: 560; margin-bottom: 9px;
+}
+.field label .val { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+input[type=range] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 22px; background: transparent; cursor: pointer; --pct: 50%;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent) var(--pct), var(--fill-strong) var(--pct));
+  box-shadow: inset 0 0 0 .5px var(--stroke-soft);
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 22px; height: 22px; margin-top: -8px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 1px rgba(0,0,0,.10), 0 3px 8px rgba(0,0,0,.18), inset 0 0 0 .5px rgba(0,0,0,.04);
+  transition: transform .16s cubic-bezier(.2,.9,.3,1.4);
+}
+input[type=range]:active::-webkit-slider-thumb { transform: scale(1.12); }
+input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--fill-strong); }
+input[type=range]::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--accent); }
+input[type=range]::-moz-range-thumb {
+  width: 20px; height: 20px; border: none; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 1px rgba(0,0,0,.1), 0 3px 8px rgba(0,0,0,.18);
+}
+
 .note {
   font-size: 11.5px; line-height: 1.5; color: var(--muted); padding: 10px 12px; margin-top: 18px;
   border-radius: var(--radius-sm); background: var(--fill); box-shadow: inset 0 0 0 .5px var(--stroke-soft);
@@ -267,6 +297,22 @@ aside > *, header > * { position: relative; z-index: 1; }
   <div class="panel-title">Color</div>
   <div class="swatches" id="swatches"></div>
 
+  <div class="panel-title">Custom brick</div>
+  <div class="group">
+    <div class="field">
+      <label>Length <span class="val"><b id="vLen">4</b> studs</span></label>
+      <input type="range" id="len" min="1" max="12" step="1" value="4">
+    </div>
+    <div class="field">
+      <label>Width <span class="val"><b id="vWid">2</b> studs</span></label>
+      <input type="range" id="wid" min="1" max="12" step="1" value="2">
+    </div>
+    <div class="field">
+      <label>Height <span class="val"><b id="vHgt">3</b> plates</span></label>
+      <input type="range" id="hgt" min="1" max="6" step="1" value="3">
+    </div>
+  </div>
+
   <div class="panel-title">Element ID lookup <span style="font-weight:500;text-transform:none;letter-spacing:0">· optional</span></div>
   <div class="group" style="padding: 8px">
     <input id="rbKey" class="search" style="margin:0 0 6px" type="password" autocomplete="off" placeholder="Rebrickable API key">
@@ -339,7 +385,9 @@ const CAT_ICON = { Bricks:"🧱", Plates:"🟨", Tiles:"⬜", Slopes:"🔺", Cur
 const $ = id => document.getElementById(id);
 const nameOf = id => { const p = CATALOG.find(c => c[0] === id); return p ? p[1] : null; };
 
-const state = { id: null, name: null, loadedId: null, loadedName: null, fromElement: null, color: 4, sizeMM: new THREE.Vector3() };
+const state = { id: null, name: null, loadedId: null, loadedName: null, fromElement: null, custom: false, color: 4, sizeMM: new THREE.Vector3() };
+const custom = { len: 4, wid: 2, hgt: 3 };            // the stud changer, 1–12 studs
+const hexOf = code => (COLORS.find(c => c[0] === code) || COLORS[0])[1];
 
 /* ---------- three.js scene ---------- */
 let renderer, scene, camera, loader, group = null;
@@ -411,9 +459,9 @@ function disposeTree(obj) {
   });
 }
 
-function placePart(g) {
+function placePart(g, ldraw = true) {
   if (group) { scene.remove(group); disposeTree(group); }
-  g.rotation.x = Math.PI;                         // LDraw is Y-down → Y-up
+  if (ldraw) g.rotation.x = Math.PI;              // LDraw is Y-down → Y-up; custom is already Y-up
   g.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(g);
   const size = new THREE.Vector3(), center = new THREE.Vector3();
@@ -429,6 +477,134 @@ function placePart(g) {
 }
 
 function meshCount(g) { let n = 0; g.traverse(o => { if (o.isMesh) n++; }); return n; }
+
+/* ---------- custom brick (the stud changer) ----------
+   Procedural brick/plate in LDU (1 stud pitch = 20 LDU = 8 mm): hollow
+   underside with clutch tubes, studs on top. Same topology the old engine
+   used — watertight, so the STL prints. Y-up, base at y = 0. */
+function customGeometry(L, W, Hp) {
+  const U = 20, PLATE = 8, WALL = 3.6, ROOF = 2.6, SR = 6, SH = 4.5,
+        TR = 8.1, TW = 2.1, PR = 4, OV = 0.4;
+  const Wd = L * U, Dd = W * U, H = Hp * PLATE, hx = Wd / 2, hz = Dd / 2;
+  const cav = Math.max(0, H - ROOF), inX = hx - WALL, inZ = hz - WALL;
+  const n = L * W, seg = n > 96 ? 14 : n > 40 ? 20 : n > 12 ? 26 : 32;
+
+  const pos = [], nrm = [];
+  const put = (p, nn) => { pos.push(p[0], p[1], p[2]); nrm.push(nn[0], nn[1], nn[2]); };
+  const sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+  const cr = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+  const un = x => { const l = Math.hypot(x[0], x[1], x[2]) || 1; return [x[0]/l, x[1]/l, x[2]/l]; };
+  const tri = (a, b, c) => { const nn = un(cr(sub(b, a), sub(c, a))); put(a, nn); put(b, nn); put(c, nn); };
+  const quad = (a, b, c, d) => { tri(a, b, c); tri(a, c, d); };
+  const triN = (a, b, c, na, nb, nc) => { put(a, na); put(b, nb); put(c, nc); };
+  const ring = (cx, cz, r, y) => {
+    const o = [];
+    for (let s = 0; s < seg; s++) { const a = 2*Math.PI*s/seg; o.push([cx + r*Math.sin(a), y, cz + r*Math.cos(a)]); }
+    return o;
+  };
+  const ringN = out => {
+    const o = [];
+    for (let s = 0; s < seg; s++) { const a = 2*Math.PI*s/seg, nn = [Math.sin(a), 0, Math.cos(a)]; o.push(out ? nn : [-nn[0], 0, -nn[2]]); }
+    return o;
+  };
+  const wall = (lo, hi, out) => {
+    const ns = ringN(out);
+    for (let s = 0; s < seg; s++) {
+      const t = (s + 1) % seg;
+      if (out) { triN(lo[s], lo[t], hi[t], ns[s], ns[t], ns[t]); triN(lo[s], hi[t], hi[s], ns[s], ns[t], ns[s]); }
+      else     { triN(lo[t], lo[s], hi[s], ns[t], ns[s], ns[s]); triN(lo[t], hi[s], hi[t], ns[t], ns[s], ns[t]); }
+    }
+  };
+  const disc = (r, c, up) => {
+    const nn = [0, up ? 1 : -1, 0];
+    for (let s = 0; s < seg; s++) { const t = (s + 1) % seg; triN(c, up ? r[s] : r[t], up ? r[t] : r[s], nn, nn, nn); }
+  };
+  const annulus = (ri, ro, up) => {
+    const nn = [0, up ? 1 : -1, 0];
+    for (let s = 0; s < seg; s++) {
+      const t = (s + 1) % seg;
+      if (up) { triN(ri[s], ro[s], ro[t], nn, nn, nn); triN(ri[s], ro[t], ri[t], nn, nn, nn); }
+      else    { triN(ri[s], ro[t], ro[s], nn, nn, nn); triN(ri[s], ri[t], ro[t], nn, nn, nn); }
+    }
+  };
+
+  // outer shell: 4 sides + top
+  quad([-hx,0,hz], [hx,0,hz], [hx,H,hz], [-hx,H,hz]);
+  quad([hx,0,-hz], [-hx,0,-hz], [-hx,H,-hz], [hx,H,-hz]);
+  quad([-hx,0,-hz], [-hx,0,hz], [-hx,H,hz], [-hx,H,-hz]);
+  quad([hx,0,hz], [hx,0,-hz], [hx,H,-hz], [hx,H,hz]);
+  quad([-hx,H,hz], [hx,H,hz], [hx,H,-hz], [-hx,H,-hz]);
+
+  if (cav <= 0) {
+    quad([-hx,0,-hz], [hx,0,-hz], [hx,0,hz], [-hx,0,hz]);
+  } else {
+    // open underside: mitred rim, cavity walls, roof underside
+    quad([-hx,0,-hz], [hx,0,-hz], [inX,0,-inZ], [-inX,0,-inZ]);
+    quad([-inX,0,inZ], [inX,0,inZ], [hx,0,hz], [-hx,0,hz]);
+    quad([-hx,0,-hz], [-inX,0,-inZ], [-inX,0,inZ], [-hx,0,hz]);
+    quad([hx,0,-hz], [hx,0,hz], [inX,0,inZ], [inX,0,-inZ]);
+    quad([inX,0,inZ], [-inX,0,inZ], [-inX,cav,inZ], [inX,cav,inZ]);
+    quad([-inX,0,-inZ], [inX,0,-inZ], [inX,cav,-inZ], [-inX,cav,-inZ]);
+    quad([inX,0,-inZ], [inX,0,inZ], [inX,cav,inZ], [inX,cav,-inZ]);
+    quad([-inX,0,inZ], [-inX,0,-inZ], [-inX,cav,-inZ], [-inX,cav,inZ]);
+    quad([-inX,cav,-inZ], [inX,cav,-inZ], [inX,cav,inZ], [-inX,cav,inZ]);
+
+    // clutch tubes at interior intersections; thin rods on 1-wide pieces
+    const tubes = [];
+    if (cav > 1.5) {
+      if (L > 1 && W > 1) { for (let i = 1; i < L; i++) for (let j = 1; j < W; j++) tubes.push({ x: -hx + i*U, z: -hz + j*U, r: TR, solid: false }); }
+      else if (L > 1) { for (let i = 1; i < L; i++) tubes.push({ x: -hx + i*U, z: 0, r: PR, solid: true }); }
+      else if (W > 1) { for (let j = 1; j < W; j++) tubes.push({ x: 0, z: -hz + j*U, r: PR, solid: true }); }
+    }
+    const top = cav + OV;
+    for (const t of tubes) {
+      const lo = ring(t.x, t.z, t.r, 0), hi = ring(t.x, t.z, t.r, top);
+      wall(lo, hi, true);
+      if (t.solid) { disc(hi, [t.x, top, t.z], true); disc(lo, [t.x, 0, t.z], false); }
+      else {
+        const ri = t.r - TW;
+        const bLo = ring(t.x, t.z, ri, 0), bHi = ring(t.x, t.z, ri, top);
+        wall(bLo, bHi, false);
+        annulus(bHi, hi, true);
+        annulus(bLo, lo, false);
+      }
+    }
+  }
+
+  // studs, sunk into the top so the union is solid
+  for (let i = 0; i < L; i++) for (let j = 0; j < W; j++) {
+    const cx = -hx + U/2 + i*U, cz = -hz + U/2 + j*U;
+    const lo = ring(cx, cz, SR, H - OV), hi = ring(cx, cz, SR, H + SH);
+    wall(lo, hi, true);
+    disc(hi, [cx, H + SH, cz], true);
+    disc(lo, [cx, H - OV, cz], false);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
+  return geo;
+}
+
+let customMat = null, customPending = false;
+function showCustom() {
+  const { len, wid, hgt } = custom;
+  customMat = new THREE.MeshStandardMaterial({ color: hexOf(state.color), roughness: 0.35, metalness: 0.05 });
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(customGeometry(len, wid, hgt), customMat));
+  placePart(g, false);
+  state.custom = true; state.fromElement = null;
+  state.id = "custom"; state.name = null;
+  state.loadedId = "custom"; state.loadedName = `${len}x${wid}x${hgt}`;
+  setStatus("ok"); setDownloadEnabled(true);
+  updateChip(); updateReadout(); markActive();
+}
+// Coalesce slider drags to one rebuild per frame (~30k tris at 12×12 is fine).
+function scheduleCustom() {
+  if (customPending) return;
+  customPending = true;
+  requestAnimationFrame(() => { customPending = false; showCustom(); });
+}
 
 /* ---------- optional element-ID → design-ID resolution ----------
    Rebrickable is the source of truth for element IDs, but its API blocks
@@ -607,6 +783,7 @@ async function fetchName(id) {
 /* ---------- selection ---------- */
 function selectPart(id, name) {
   state.fromElement = null;
+  state.custom = false;
   // A 7-digit number with a key set is almost certainly an element ID — resolve
   // it up front so it's recognised immediately as the Rebrickable element.
   if (rbKey() && /^\d{7}$/.test(id)) {
@@ -637,6 +814,13 @@ function setStatus(kind, msg) {
 function setDownloadEnabled(on) { document.querySelectorAll(".dl").forEach(b => b.disabled = !on); }
 
 function updateReadout() {
+  if (state.custom) {
+    $("roName").textContent = `Custom · ${custom.len}×${custom.wid}, ${custom.hgt} plate${custom.hgt > 1 ? "s" : ""} tall`;
+    const s = state.sizeMM;
+    $("roDims").textContent =
+      `${s.x.toFixed(1)} × ${s.z.toFixed(1)} × ${s.y.toFixed(1)} mm · ${COLORS.find(c => c[0] === state.color)[2]}`;
+    return;
+  }
   $("roName").textContent = state.name ? `#${state.id} · ${state.name}` : `#${state.id}`;
   const s = state.sizeMM;
   $("roDims").textContent = group
@@ -644,6 +828,10 @@ function updateReadout() {
     : "—";
 }
 function updateChip() {
+  if (state.custom) {
+    $("chip").innerHTML = `<span class="num">Custom</span> · ${custom.len}×${custom.wid} brick, ${custom.hgt}-plate`;
+    return;
+  }
   const base = state.name ? `<span class="num">#${state.id}</span> · ${state.name}` : `<span class="num">#${state.id}</span>`;
   const from = state.fromElement ? ` <span style="color:var(--muted);font-weight:500">· from #${state.fromElement}</span>` : "";
   $("chip").innerHTML = base + from;
@@ -656,7 +844,11 @@ function buildSwatches() {
     s.style.background = hex; s.title = name; s.dataset.code = code;
     s.onclick = () => {
       state.color = code; markActive();
-      if (group) loadPart(state.id, code, true);   // quiet reload in the new colour
+      if (state.custom) {                          // custom recolours in place, no reload
+        if (customMat) { customMat.color.set(hex); render(); }
+      } else if (group) {
+        loadPart(state.id, code, true);            // quiet reload in the new colour
+      }
       updateReadout();
     };
     $("swatches").append(s);
@@ -759,6 +951,21 @@ function wireUI() {
     else if (e.key === "Enter") { e.preventDefault(); if (results[cur]) results[cur].click(); }
     else if (e.key === "Escape") { search.value = ""; renderResults(); }
   });
+
+  // The stud changer: any drag switches to a generated custom brick.
+  const paintRange = el =>
+    el.style.setProperty("--pct", ((el.value - el.min) / (el.max - el.min)) * 100 + "%");
+  const label = { len: "vLen", wid: "vWid", hgt: "vHgt" };
+  for (const id of ["len", "wid", "hgt"]) {
+    const el = $(id);
+    paintRange(el);
+    el.addEventListener("input", () => {
+      custom[id] = +el.value;
+      $(label[id]).textContent = el.value;
+      paintRange(el);
+      scheduleCustom();
+    });
+  }
 
   document.querySelectorAll(".dl").forEach(b => b.onclick = exportSTL);
 
