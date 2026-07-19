@@ -743,19 +743,32 @@ function makeGen(earcut) {
   }
   function liftarm(N) {
     N = Math.max(2, N);
-    const g = V(), seg = 24, r = U/2, th = U/2, x0 = 0, x1 = (N - 1) * U, prof = [];
-    prof.push([x0, -r], [x1, -r]);
-    for (let s = 1; s < seg; s++) { const a = -Math.PI/2 + Math.PI*s/seg; prof.push([x1 + r*Math.cos(a), r*Math.sin(a)]); }
-    prof.push([x1, r], [x0, r]);
-    for (let s = 1; s < seg; s++) { const a = Math.PI/2 + Math.PI*s/seg; prof.push([x0 + r*Math.cos(a), r*Math.sin(a)]); }
+    // width 2r=20 (1 module), thickness 2*th=18 (real beam), c = molded-edge bevel
+    const g = V(), seg = 24, r = 10, c = 1, th = 9, zw = th - c, x0 = 0, x1 = (N - 1) * U;
+    const mkProf = (rr) => {
+      const p = [];
+      p.push([x0, -rr], [x1, -rr]);
+      for (let s = 1; s < seg; s++) { const a = -Math.PI/2 + Math.PI*s/seg; p.push([x1 + rr*Math.cos(a), rr*Math.sin(a)]); }
+      p.push([x1, rr], [x0, rr]);
+      for (let s = 1; s < seg; s++) { const a = Math.PI/2 + Math.PI*s/seg; p.push([x0 + rr*Math.cos(a), rr*Math.sin(a)]); }
+      return p;
+    };
+    const prof = mkProf(r), profIn = mkProf(r - c), M = prof.length;
     const holes = [];
     for (let i = 0; i < N; i++) holes.push(i * U);
     const holeLoops = holes.map(cx => holeXY(cx, 0, RC, seg, true));
-    faceZ(g, prof, holeLoops, th, +1); faceZ(g, prof, holeLoops, -th, -1);
-    for (let i = 0; i < prof.length; i++) {
-      const p = prof[i], q = prof[(i + 1) % prof.length];
-      const Pf = [p[0],p[1],th], Qf = [q[0],q[1],th], Pb = [p[0],p[1],-th], Qb = [q[0],q[1],-th];
-      g.tri(Pf, Qb, Qf); g.tri(Pf, Pb, Qb);
+    faceZ(g, profIn, holeLoops, th, +1); faceZ(g, profIn, holeLoops, -th, -1);
+    for (let i = 0; i < M; i++) {              // full-width perimeter wall between z = ±zw
+      const p = prof[i], q = prof[(i + 1) % M];
+      g.tri([p[0],p[1],zw], [q[0],q[1],-zw], [q[0],q[1],zw]);
+      g.tri([p[0],p[1],zw], [p[0],p[1],-zw], [q[0],q[1],-zw]);
+    }
+    for (let i = 0; i < M; i++) {              // 45° chamfer bands to the inset faces
+      const p = prof[i], q = prof[(i + 1) % M], pi = profIn[i], qi = profIn[(i + 1) % M];
+      g.tri([p[0],p[1],zw], [q[0],q[1],zw], [qi[0],qi[1],th]);
+      g.tri([p[0],p[1],zw], [qi[0],qi[1],th], [pi[0],pi[1],th]);
+      g.tri([q[0],q[1],-zw], [p[0],p[1],-zw], [pi[0],pi[1],-th]);
+      g.tri([q[0],q[1],-zw], [pi[0],pi[1],-th], [qi[0],qi[1],-th]);
     }
     for (const cx of holes) addBore(g, cx, 0, th, seg);
     return g;
