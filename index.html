@@ -526,7 +526,7 @@ function makeGen(earcut) {
   const U = 20, PLATE = 8, WALL = 3.6, ROOF = 2.6;
   const SR = 6, SH = 4;            // stud radius / height
   const TR = 8, TW = 1.5, PR = 4;  // clutch tube outer / wall, thin rod radius
-  const HR = 6, OV = 0.4;          // pin-hole radius, overlap
+  const HR = 6, OV = 0.4, RC = 7.8, CBD = 1;   // bore radius, counterbore radius & depth
   const segFor = n => (n > 96 ? 16 : n > 40 ? 20 : n > 12 ? 26 : 32);
 
   const V = () => {
@@ -631,13 +631,39 @@ function makeGen(earcut) {
     for (let s = 0; s < seg; s++) { const a = 2*Math.PI*(cw ? -s : s)/seg; o.push([cx + r*Math.cos(a), cy + r*Math.sin(a)]); }
     return o;
   };
-  const tunnelZ = (g, cx, cy, r, zA, zB, seg) => {
+  const ringZ = (cx, cy, r, z, seg) => {
+    const o = [];
+    for (let s = 0; s < seg; s++) { const a = 2*Math.PI*s/seg; o.push([cx + r*Math.cos(a), cy + r*Math.sin(a), z]); }
+    return o;
+  };
+  // z-axis cylinder wall, smooth radial normals (inward = toward the axis)
+  const cylZ = (g, cx, cy, r, zA, zB, seg, inward) => {
+    const A = ringZ(cx,cy,r,zA,seg), B = ringZ(cx,cy,r,zB,seg), ns = [];
+    for (let s = 0; s < seg; s++) { const a = 2*Math.PI*s/seg; ns.push(inward ? [-Math.cos(a),-Math.sin(a),0] : [Math.cos(a),Math.sin(a),0]); }
     for (let s = 0; s < seg; s++) {
-      const a0 = 2*Math.PI*s/seg, a1 = 2*Math.PI*(s+1)/seg;
-      const p0 = [cx + r*Math.cos(a0), cy + r*Math.sin(a0)], p1 = [cx + r*Math.cos(a1), cy + r*Math.sin(a1)];
-      const A0 = [p0[0], p0[1], zA], A1 = [p1[0], p1[1], zA], B0 = [p0[0], p0[1], zB], B1 = [p1[0], p1[1], zB];
-      g.tri(A0, B0, B1); g.tri(A0, B1, A1);
+      const t = (s + 1) % seg;
+      if (inward) { g.triN(A[s], B[t], B[s], ns[s], ns[t], ns[s]); g.triN(A[s], A[t], B[t], ns[s], ns[t], ns[t]); }
+      else        { g.triN(A[s], B[s], B[t], ns[s], ns[s], ns[t]); g.triN(A[s], B[t], A[t], ns[s], ns[t], ns[t]); }
     }
+  };
+  // flat ring between radii ri<ro at plane z; face = +1 (normal +z) or -1
+  const annZ = (g, cx, cy, ri, ro, z, seg, face) => {
+    const I = ringZ(cx,cy,ri,z,seg), O = ringZ(cx,cy,ro,z,seg), n = [0,0,face];
+    for (let s = 0; s < seg; s++) {
+      const t = (s + 1) % seg;
+      if (face > 0) { g.triN(I[s], O[s], O[t], n,n,n); g.triN(I[s], O[t], I[t], n,n,n); }
+      else          { g.triN(I[s], O[t], O[s], n,n,n); g.triN(I[s], I[t], O[t], n,n,n); }
+    }
+  };
+  // counterbored pin hole through z=±th: smooth bore + a recessed rim on each
+  // face (the faces carry a hole of radius RC; this fills bore + both pockets).
+  const addBore = (g, cx, cy, th, seg) => {
+    const zi = th - CBD;
+    cylZ(g, cx, cy, RC, th, zi, seg, true);
+    annZ(g, cx, cy, HR, RC, zi, seg, +1);
+    cylZ(g, cx, cy, HR, zi, -zi, seg, true);
+    annZ(g, cx, cy, HR, RC, -zi, seg, -1);
+    cylZ(g, cx, cy, RC, -zi, -th, seg, true);
   };
 
   function rect(L, W, Hp, studs) {
@@ -705,13 +731,13 @@ function makeGen(earcut) {
     const g = V(), Wd = L*U, H = 3*PLATE, hx = Wd/2, hz = U/2, seg = 24, cy = H/2, holes = [];
     for (let i = 1; i < L; i++) holes.push(-hx + i*U);
     const rectOutline = [[-hx,0],[hx,0],[hx,H],[-hx,H]];
-    const holeLoops = holes.map(cx => holeXY(cx, cy, HR, seg, true));
+    const holeLoops = holes.map(cx => holeXY(cx, cy, RC, seg, true));
     faceZ(g, rectOutline, holeLoops, hz, +1); faceZ(g, rectOutline, holeLoops, -hz, -1);
     g.quad([-hx,0,-hz],[-hx,0,hz],[-hx,H,hz],[-hx,H,-hz]);
     g.quad([hx,0,hz],[hx,0,-hz],[hx,H,-hz],[hx,H,hz]);
     g.quad([-hx,H,hz],[hx,H,hz],[hx,H,-hz],[-hx,H,-hz]);
     g.quad([-hx,0,-hz],[hx,0,-hz],[hx,0,hz],[-hx,0,hz]);
-    for (const cx of holes) tunnelZ(g, cx, cy, HR, -hz, hz, seg);
+    for (const cx of holes) addBore(g, cx, cy, hz, seg);
     addStuds(g, L, 1, hx, hz, H, seg);
     return g;
   }
@@ -724,14 +750,14 @@ function makeGen(earcut) {
     for (let s = 1; s < seg; s++) { const a = Math.PI/2 + Math.PI*s/seg; prof.push([x0 + r*Math.cos(a), r*Math.sin(a)]); }
     const holes = [];
     for (let i = 0; i < N; i++) holes.push(i * U);
-    const holeLoops = holes.map(cx => holeXY(cx, 0, HR, seg, true));
+    const holeLoops = holes.map(cx => holeXY(cx, 0, RC, seg, true));
     faceZ(g, prof, holeLoops, th, +1); faceZ(g, prof, holeLoops, -th, -1);
     for (let i = 0; i < prof.length; i++) {
       const p = prof[i], q = prof[(i + 1) % prof.length];
       const Pf = [p[0],p[1],th], Qf = [q[0],q[1],th], Pb = [p[0],p[1],-th], Qb = [q[0],q[1],-th];
       g.tri(Pf, Qb, Qf); g.tri(Pf, Pb, Qb);
     }
-    for (const cx of holes) tunnelZ(g, cx, 0, HR, -th, th, seg);
+    for (const cx of holes) addBore(g, cx, 0, th, seg);
     return g;
   }
   function bracket(L) {
