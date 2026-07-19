@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brick Studio</title>
+<style>
+/* =============================================================
+   Brick Studio — Liquid Glass (iOS 26) · real LDraw parts
+   ============================================================= */
+:root {
+  --accent: #0a84ff;
+  --radius-lg: 28px; --radius-md: 18px; --radius-sm: 12px;
+  --glass: rgba(255,255,255,.44); --glass-2: rgba(255,255,255,.30);
+  --glass-hi: rgba(255,255,255,.70); --glass-lo: rgba(255,255,255,.10);
+  --stroke: rgba(255,255,255,.55); --stroke-soft: rgba(0,0,0,.06);
+  --shadow: 0 10px 40px rgba(20,25,45,.16), 0 2px 8px rgba(20,25,45,.08);
+  --text: #10131a; --muted: rgba(16,19,26,.52);
+  --fill: rgba(120,130,150,.16); --fill-strong: rgba(120,130,150,.24);
+  --stage-glass: rgba(255,255,255,.22);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass: rgba(40,44,56,.52); --glass-2: rgba(60,66,82,.40);
+    --glass-hi: rgba(255,255,255,.26); --glass-lo: rgba(255,255,255,.04);
+    --stroke: rgba(255,255,255,.16); --stroke-soft: rgba(255,255,255,.08);
+    --shadow: 0 14px 48px rgba(0,0,0,.5), 0 2px 10px rgba(0,0,0,.35);
+    --text: #f2f4f8; --muted: rgba(242,244,248,.55);
+    --fill: rgba(255,255,255,.10); --fill-strong: rgba(255,255,255,.18);
+    --stage-glass: rgba(20,22,30,.28);
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body {
+  font: 15px/1.4 -apple-system, "SF Pro Text", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  color: var(--text); letter-spacing: -.01em; background: #dfe6f2;
+  display: grid; grid-template-columns: 250px 1fr 292px; grid-template-rows: auto 1fr;
+  grid-template-areas: "head head head" "parts stage props"; gap: 12px; padding: 12px;
+}
+@media (prefers-color-scheme: dark) { body { background: #0b0d14; } }
+
+.wallpaper {
+  position: fixed; inset: -20%; z-index: -1; filter: blur(40px) saturate(150%);
+  background:
+    radial-gradient(38% 44% at 18% 22%, #ff9f0a 0%, transparent 62%),
+    radial-gradient(42% 40% at 78% 18%, #ff375f 0%, transparent 60%),
+    radial-gradient(46% 46% at 68% 82%, #0a84ff 0%, transparent 62%),
+    radial-gradient(40% 42% at 22% 78%, #30d158 0%, transparent 60%),
+    radial-gradient(50% 50% at 50% 50%, #bf5af2 0%, transparent 70%);
+  opacity: .58; transform: scale(1.06);
+}
+@media (prefers-color-scheme: dark) { .wallpaper { opacity: .40; } }
+
+.glass {
+  position: relative; background: var(--glass);
+  backdrop-filter: blur(34px) saturate(190%); -webkit-backdrop-filter: blur(34px) saturate(190%);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 var(--glass-lo),
+              inset 1px 0 0 var(--glass-lo), inset 0 0 0 .5px var(--stroke);
+}
+.glass::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(145deg, rgba(255,255,255,.30), rgba(255,255,255,0) 42%);
+}
+
+header {
+  grid-area: head; display: flex; align-items: center; gap: 8px;
+  padding: 9px 10px 9px 18px; border-radius: 24px;
+}
+.logo { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 640; letter-spacing: -.02em; }
+.logo-mark {
+  width: 26px; height: 19px; border-radius: 5px; position: relative;
+  background: linear-gradient(160deg, #ffd60a, #ff9f0a);
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.16), 0 2px 6px rgba(255,159,10,.4);
+}
+.logo-mark::before, .logo-mark::after {
+  content: ""; position: absolute; top: -4px; width: 8px; height: 5px;
+  border-radius: 3px 3px 1px 1px; background: #ffd60a;
+}
+.logo-mark::before { left: 3px; } .logo-mark::after { right: 3px; }
+.spacer { flex: 1; }
+
+.btn {
+  position: relative; font: inherit; font-size: 13.5px; font-weight: 590; color: var(--text);
+  padding: 8px 15px; border: none; cursor: pointer; border-radius: 999px; background: var(--glass-2);
+  backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 0 0 .5px var(--stroke), inset 0 1px 0 var(--glass-hi), 0 2px 8px rgba(20,25,45,.10);
+  transition: transform .18s cubic-bezier(.2,.9,.3,1.4), background .18s;
+}
+.btn:hover { background: var(--glass); transform: translateY(-1px); }
+.btn:active { transform: scale(.94); }
+.btn.tint { background: linear-gradient(180deg, rgba(255,255,255,.28), rgba(255,255,255,0)), var(--accent);
+  color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 4px 14px rgba(10,132,255,.45); }
+.btn.tint:hover { filter: brightness(1.07); }
+.btn.tint.done { background: linear-gradient(180deg, rgba(255,255,255,.28), rgba(255,255,255,0)), #30d158;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 4px 14px rgba(48,209,88,.45); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn:disabled:hover { transform: none; }
+
+aside {
+  overflow-y: auto; overflow-x: hidden; padding: 16px 12px 24px;
+  scrollbar-width: thin; scrollbar-color: var(--fill-strong) transparent;
+}
+aside::-webkit-scrollbar { width: 8px; }
+aside::-webkit-scrollbar-thumb { background: var(--fill-strong); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+#parts { grid-area: parts; } #props { grid-area: props; }
+aside > *, header > * { position: relative; z-index: 1; }
+
+.panel-title { font-size: 12px; font-weight: 640; letter-spacing: -.01em; color: var(--muted); margin: 4px 8px 8px; }
+.panel-title:not(:first-child) { margin-top: 20px; }
+.group { background: var(--fill); border-radius: var(--radius-md); padding: 4px; box-shadow: inset 0 0 0 .5px var(--stroke-soft); }
+
+.search {
+  width: 100%; font: inherit; font-size: 15px; font-weight: 560; color: var(--text);
+  padding: 11px 14px; margin: 0 0 10px; border: none; border-radius: 14px; outline: none;
+  background: var(--fill); box-shadow: inset 0 0 0 .5px var(--stroke-soft); transition: box-shadow .18s;
+}
+.search::placeholder { color: var(--muted); font-weight: 500; }
+.search:focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+.chip {
+  display: flex; align-items: center; gap: 7px; padding: 11px 14px; border-radius: 14px; margin: 0 0 8px;
+  background: var(--fill); box-shadow: inset 0 0 0 .5px var(--stroke-soft);
+  font-size: 14.5px; font-weight: 600; letter-spacing: -.01em;
+}
+.chip .num { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 680; }
+
+.part {
+  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; padding: 8px 9px;
+  background: transparent; color: var(--text); border: none; border-radius: 14px; cursor: pointer; font: inherit;
+  transition: background .15s, transform .15s cubic-bezier(.2,.9,.3,1.4);
+}
+.part:hover, .part.key { background: var(--fill); }
+.part:active { transform: scale(.97); }
+.part.active { background: var(--glass); box-shadow: inset 0 0 0 .5px var(--stroke), inset 0 1px 0 var(--glass-hi), 0 2px 8px rgba(20,25,45,.10); }
+.part-ico { width: 34px; height: 26px; flex: none; display: grid; place-items: center; font-size: 18px; }
+.part-name { font-size: 13.5px; font-weight: 560; letter-spacing: -.01em; }
+.part-name .n { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 640; }
+.part-sub { font-size: 11.5px; color: var(--muted); }
+.part .go { margin-left: auto; color: var(--accent); font-size: 16px; font-weight: 700; opacity: .0; transition: opacity .15s; }
+.part:hover .go, .part.key .go { opacity: 1; }
+
+#stage {
+  grid-area: stage; position: relative; display: grid; place-items: center;
+  background: var(--stage-glass); backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border-radius: var(--radius-lg); overflow: hidden;
+  box-shadow: inset 0 0 0 .5px var(--stroke), inset 0 1px 0 var(--glass-hi), var(--shadow);
+}
+#viewport { position: relative; z-index: 1; width: 100%; height: 100%; }
+#gl { display: block; width: 100%; height: 100%; }
+
+.readout {
+  position: absolute; top: 14px; left: 14px; z-index: 2; padding: 8px 15px; border-radius: 16px;
+  font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums;
+  background: var(--glass); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: inset 0 0 0 .5px var(--stroke), inset 0 1px 0 var(--glass-hi), 0 4px 16px rgba(20,25,45,.14);
+}
+.readout b { display: block; margin-bottom: 1px; color: var(--text); font-size: 14px; font-weight: 620; letter-spacing: -.02em; }
+
+/* loading / error overlay */
+.status {
+  position: absolute; inset: 0; z-index: 3; display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px;
+  pointer-events: none;
+}
+.status.show { display: flex; }
+.status-msg {
+  font-size: 13px; font-weight: 560; color: var(--text); max-width: 320px; line-height: 1.5;
+  background: var(--glass); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+  padding: 12px 18px; border-radius: 16px;
+  box-shadow: inset 0 0 0 .5px var(--stroke), inset 0 1px 0 var(--glass-hi), 0 4px 16px rgba(20,25,45,.14);
+}
+.status-msg .sub { display: block; margin-top: 4px; font-size: 11.5px; font-weight: 500; color: var(--muted); }
+.spinner {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid var(--fill-strong); border-top-color: var(--accent);
+  animation: spin .8s linear infinite;
+}
+.status.error .spinner { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.swatches { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; padding: 4px; }
+.sw {
+  aspect-ratio: 1; border-radius: 9px; cursor: pointer; position: relative;
+  box-shadow: inset 0 -3px 6px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.45), 0 1px 3px rgba(0,0,0,.18);
+  transition: transform .18s cubic-bezier(.2,.9,.3,1.4);
+}
+.sw:hover { transform: scale(1.12); } .sw:active { transform: scale(.9); } .sw.active { transform: scale(1.08); }
+.sw.active::after { content: ""; position: absolute; inset: -4px; border: 2.5px solid #fff; border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.25); }
+
+.note {
+  font-size: 11.5px; line-height: 1.5; color: var(--muted); padding: 10px 12px; margin-top: 18px;
+  border-radius: var(--radius-sm); background: var(--fill); box-shadow: inset 0 0 0 .5px var(--stroke-soft);
+}
+.note b { color: var(--text); font-weight: 600; }
+.dlwide { width: 100%; margin-top: 8px; padding: 11px 15px; font-size: 14px; }
+
+@media (max-width: 900px) {
+  body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto minmax(240px, 1fr) auto;
+    grid-template-areas: "head" "parts" "stage" "props";
+    gap: 10px; padding: 10px;
+  }
+  header { flex-wrap: wrap; }
+  /* On phones the search IS the app — keep it visible, just short. */
+  #parts { max-height: 24vh; }
+  #props { max-height: 30vh; }
+}
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script>
+  // If the ES-module + CDN import never runs (no internet, blocked CDN), show a
+  // clear message instead of a blank stage.
+  window.__boot = setTimeout(function () {
+    if (window.__engineReady) return;
+    var s = document.getElementById("status");
+    if (!s) return;
+    s.className = "status show error";
+    s.querySelector(".status-msg").innerHTML =
+      "Couldn’t load the 3D engine.<span class='sub'>This version streams real LEGO parts, so it needs an internet connection. Check your connection and reload.</span>";
+  }, 12000);
+</script>
+</head>
+<body>
+
+<div class="wallpaper"></div>
+
+<header class="glass">
+  <div class="logo"><span class="logo-mark"></span> Brick Studio</div>
+  <div class="spacer"></div>
+  <button class="btn" id="randomBtn">Random part</button>
+  <button class="btn tint dl" data-label="Download STL" id="dlBtn" disabled>Download STL</button>
+</header>
+
+<aside id="parts" class="glass">
+  <div class="panel-title">Find a part</div>
+  <input id="search" class="search" type="text" placeholder="Part # or name — e.g. 3001, slope"
+         autocomplete="off" autocapitalize="off" spellcheck="false" autofocus>
+  <div id="results" class="group"></div>
+</aside>
+
+<main id="stage">
+  <div class="readout"><b id="roName">—</b><span id="roDims">—</span></div>
+  <div id="viewport"><canvas id="gl"></canvas></div>
+  <div id="status" class="status show">
+    <div class="spinner"></div>
+    <div class="status-msg">Loading 3D engine…</div>
+  </div>
+</main>
+
+<aside id="props" class="glass">
+  <div class="panel-title">Selected part</div>
+  <div class="chip" id="chip"><span class="num">—</span></div>
+  <button class="btn tint dl dlwide" data-label="Download STL" id="dlBtn2" disabled>Download STL</button>
+
+  <div class="panel-title">Color</div>
+  <div class="swatches" id="swatches"></div>
+
+  <div class="panel-title">Element ID lookup <span style="font-weight:500;text-transform:none;letter-spacing:0">· optional</span></div>
+  <div class="group" style="padding: 8px">
+    <input id="rbKey" class="search" style="margin:0 0 6px" type="password" autocomplete="off" placeholder="Rebrickable API key">
+    <input id="rbProxy" class="search" style="margin:0 0 6px; font-size:12px" type="text" autocomplete="off" spellcheck="false" placeholder="Custom CORS proxy (optional)">
+    <div style="display:flex; gap:8px; align-items:center; margin:2px 4px 6px">
+      <button class="btn" id="rbTest" style="font-size:12px; padding:6px 12px">Test connection</button>
+      <span id="rbStatus" style="font-size:11px; color:var(--muted); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"></span>
+    </div>
+    <div style="font-size:10.5px; color:var(--muted); line-height:1.45; padding:0 4px 2px">
+      Recognises 6–7 digit <b>element IDs</b> (e.g. 4211097) as Rebrickable elements and loads the design in its colour. Rebrickable blocks direct browser calls, so requests route through a public <b>CORS proxy</b> and your <b>read-only</b> key passes through it; a few proxies are tried automatically. <a href="https://rebrickable.com/api/" target="_blank" rel="noopener" style="color:var(--accent)">Get a free key ›</a>
+    </div>
+  </div>
+
+  <div class="note">Type any LDraw <b>design ID</b> — the 4–5 digit number molded into the part — to load it, from all <b>16,873</b> official parts. LEGO <b>element IDs</b> (6–7 digits like 4211097) are colour-specific and won't load; use the design ID instead (4211097 → <b>6222</b>). Parts stream live, so this needs an <b>internet connection</b>. STL exports in millimetres, Z-up; color is preview-only.</div>
+</aside>
+
+<script type="module">
+import * as THREE from "three";
+import { LDrawLoader } from "three/addons/loaders/LDrawLoader.js";
+import { STLExporter } from "three/addons/exporters/STLExporter.js";
+
+/* Real LDraw library, served from a CORS-enabled CDN mirror maintained for
+   static/browser use by a three.js contributor. 1 LDU = 0.4 mm. */
+const LIB = "https://cdn.jsdelivr.net/gh/gkjohnson/ldraw-parts-library@master/complete/ldraw/";
+const LDU_MM = 0.4;
+
+/* LDraw colour codes → a swatch colour for the button (the rendered colour
+   comes from the library's LDConfig, not this hex). */
+const COLORS = [
+  [4,  "#c91a09", "Red"],        [25, "#f08f1c", "Orange"],
+  [14, "#f2cd37", "Yellow"],     [10, "#58ab41", "Bright Green"],
+  [2,  "#257a3e", "Green"],      [1,  "#0055bf", "Blue"],
+  [9,  "#b4d2e3", "Light Blue"], [5,  "#c870a0", "Pink"],
+  [15, "#f4f4f4", "White"],      [71, "#a0a5a9", "Light Gray"],
+  [72, "#6c6e68", "Dark Gray"],  [70, "#582a12", "Brown"],
+  [19, "#e4cd9e", "Tan"],        [0,  "#1b2a34", "Black"],
+];
+
+/* Curated browse list (id, name, category). Any part number works whether or
+   not it's listed here — this is just for discovery by name. */
+const CATALOG = [
+  ["3005","Brick 1×1","Bricks"],["3004","Brick 1×2","Bricks"],["3622","Brick 1×3","Bricks"],
+  ["3010","Brick 1×4","Bricks"],["3009","Brick 1×6","Bricks"],["3008","Brick 1×8","Bricks"],
+  ["3003","Brick 2×2","Bricks"],["3002","Brick 2×3","Bricks"],["3001","Brick 2×4","Bricks"],
+  ["2456","Brick 2×6","Bricks"],["3007","Brick 2×8","Bricks"],
+  ["3024","Plate 1×1","Plates"],["3023","Plate 1×2","Plates"],["3623","Plate 1×3","Plates"],
+  ["3710","Plate 1×4","Plates"],["3666","Plate 1×6","Plates"],["3460","Plate 1×8","Plates"],
+  ["3022","Plate 2×2","Plates"],["3021","Plate 2×3","Plates"],["3020","Plate 2×4","Plates"],
+  ["3795","Plate 2×6","Plates"],["3034","Plate 2×8","Plates"],["3031","Plate 4×4","Plates"],
+  ["3032","Plate 4×6","Plates"],["3035","Plate 4×8","Plates"],["3958","Plate 6×6","Plates"],["41539","Plate 8×8","Plates"],
+  ["3070b","Tile 1×1","Tiles"],["3069b","Tile 1×2","Tiles"],["63864","Tile 1×3","Tiles"],
+  ["2431","Tile 1×4","Tiles"],["6636","Tile 1×6","Tiles"],["3068b","Tile 2×2","Tiles"],["87079","Tile 2×4","Tiles"],
+  ["3040","Slope 45° 2×1","Slopes"],["3039","Slope 45° 2×2","Slopes"],["3038","Slope 45° 2×3","Slopes"],
+  ["3037","Slope 45° 2×4","Slopes"],["3298","Slope 33° 3×2","Slopes"],["3665","Slope Inv. 2×1","Slopes"],["3660","Slope Inv. 2×2","Slopes"],
+  ["11477","Curved Slope 2×1","Curved"],["50950","Curved Slope 3×1","Curved"],["15068","Curved Slope 2×2","Curved"],["93273","Curved Slope 4×1 Dbl","Curved"],
+  ["3062b","Round Brick 1×1","Round"],["4073","Round Plate 1×1","Round"],["4032","Round Plate 2×2","Round"],
+  ["3941","Round Brick 2×2","Round"],["98138","Round Tile 1×1","Round"],
+  ["3942","Cone 2×2×2","Cones"],["4589","Cone 1×1","Cones"],
+  ["3659","Arch 1×4","Arches"],["3455","Arch 1×6","Arches"],
+  ["3700","Technic Brick 1×2","Technic"],["3701","Technic Brick 1×4","Technic"],["3894","Technic Brick 1×6","Technic"],
+  ["3702","Technic Brick 1×8","Technic"],["3705","Technic Axle 4","Technic"],["2780","Technic Pin","Technic"],["32523","Technic Liftarm 1×3","Technic"],
+  ["4070","Brick 1×1 Headlight","Brackets"],["87087","Brick 1×1 Stud on Side","Brackets"],["44728","Bracket 1×2–2×2","Brackets"],
+  ["3626b","Minifig Head","Minifig"],["973","Minifig Torso","Minifig"],
+  ["3641","Tyre","Wheels"],["4084","Wheel","Wheels"],
+];
+const CAT_ORDER = ["Bricks","Plates","Tiles","Slopes","Curved","Round","Cones","Arches","Technic","Brackets","Minifig","Wheels"];
+const CAT_ICON = { Bricks:"🧱", Plates:"🟨", Tiles:"⬜", Slopes:"🔺", Curved:"🌙", Round:"⭕",
+                   Cones:"🔻", Arches:"🌉", Technic:"⚙️", Brackets:"📐", Minifig:"🧍", Wheels:"🛞" };
+
+const $ = id => document.getElementById(id);
+const nameOf = id => { const p = CATALOG.find(c => c[0] === id); return p ? p[1] : null; };
+
+const state = { id: null, name: null, loadedId: null, loadedName: null, fromElement: null, color: 4, sizeMM: new THREE.Vector3() };
+
+/* ---------- three.js scene ---------- */
+let renderer, scene, camera, loader, group = null;
+const DIR = new THREE.Vector3(0.72, 0.5, 1).normalize();   // fixed 3/4 view
+
+async function init() {
+  const canvas = $("gl");
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(30, 1, 1, 100000);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x5b6472, 1.15));
+  const key = new THREE.DirectionalLight(0xffffff, 2.3); key.position.set(-60, 120, 90); scene.add(key);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.75); fill.position.set(90, 40, 70); scene.add(fill);
+  const rim = new THREE.DirectionalLight(0xdfe8ff, 0.6); rim.position.set(30, -50, -90); scene.add(rim);
+
+  loader = new LDrawLoader();
+  loader.setPartsLibraryPath(LIB);
+  loader.smoothNormals = true;
+  await loader.preloadMaterials(LIB + "LDConfig.ldr");
+
+  new ResizeObserver(onResize).observe($("gl"));
+  window.__engineReady = true;
+  clearTimeout(window.__boot);
+
+  buildSwatches();
+  buildCatalog();
+  wireUI();
+  selectPart("3001", "Brick 2×4");
+}
+
+function onResize() {
+  if (!renderer) return;
+  const c = $("gl");
+  renderer.setSize(c.clientWidth, c.clientHeight, false);
+  frame();
+}
+
+// Fixed camera: no orbit/zoom — recomputed only to fit the current part.
+function frame() {
+  if (!group) return;
+  const c = $("gl");
+  const r = state._radius || 30;
+  const asp = Math.max(0.0001, c.clientWidth / c.clientHeight);
+  camera.aspect = asp;
+  const fov = camera.fov * Math.PI / 180;
+  const fovX = 2 * Math.atan(Math.tan(fov / 2) * asp);
+  const dist = r / Math.sin(Math.min(fov, fovX) / 2) * 1.18;
+  camera.position.copy(DIR).multiplyScalar(dist);
+  camera.up.set(0, 1, 0);
+  camera.lookAt(0, 0, 0);
+  camera.near = Math.max(1, dist - r * 3);
+  camera.far = dist + r * 3;
+  camera.updateProjectionMatrix();
+  render();
+}
+
+function render() { if (renderer) renderer.render(scene, camera); }
+
+function disposeTree(obj) {
+  obj.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    const m = o.material;
+    if (Array.isArray(m)) m.forEach(x => x && x.dispose && x.dispose());
+    else if (m && m.dispose) m.dispose();
+  });
+}
+
+function placePart(g) {
+  if (group) { scene.remove(group); disposeTree(group); }
+  g.rotation.x = Math.PI;                         // LDraw is Y-down → Y-up
+  g.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(g);
+  const size = new THREE.Vector3(), center = new THREE.Vector3();
+  box.getSize(size); box.getCenter(center);
+  g.position.set(-center.x, -center.y, -center.z); // centre at origin
+  g.updateMatrixWorld(true);
+  scene.add(g);
+  group = g;
+  state._radius = size.length() / 2;
+  state.sizeMM.copy(size).multiplyScalar(LDU_MM);
+  frame();
+  updateReadout();
+}
+
+function meshCount(g) { let n = 0; g.traverse(o => { if (o.isMesh) n++; }); return n; }
+
+/* ---------- optional element-ID → design-ID resolution ----------
+   Rebrickable is the source of truth for element IDs, but its API blocks
+   browser CORS, so requests go through a user-configurable CORS proxy with the
+   read-only key as a query parameter. Entirely opt-in. */
+const LS_KEY = "brickstudio.rbkey", LS_PROXY = "brickstudio.rbproxy";
+const lsGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+const rbKey = () => (($("rbKey") || {}).value || "").trim();
+
+class RbError extends Error {}   // a definitive Rebrickable reply (bad key / unknown element)
+
+// Rebrickable accepts the key as a ?key= query param; the whole URL is handed
+// to a CORS proxy. A few public proxies are tried in turn for resilience.
+const PROXIES = [
+  u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+  u => "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(u),
+  u => "https://corsproxy.io/?url=" + encodeURIComponent(u),
+];
+function proxyBuilders() {
+  const custom = (($("rbProxy") || {}).value || "").trim();
+  const list = PROXIES.slice();
+  if (custom) list.unshift(u => custom + encodeURIComponent(u));   // custom one jumps the queue
+  return list;
+}
+
+// Element ID → { design, LDraw colour }. Tries proxies until one answers; a
+// real Rebrickable error (bad key, unknown element) stops immediately.
+async function resolveElement(elementId) {
+  const target = `https://rebrickable.com/api/v3/lego/elements/${encodeURIComponent(elementId)}/?key=${encodeURIComponent(rbKey())}`;
+  let lastErr = null;
+  for (const build of proxyBuilders()) {
+    let text;
+    try {
+      const res = await fetch(build(target), { headers: { Accept: "application/json" } });
+      text = await res.text();
+    } catch { lastErr = new Error("proxy unreachable"); continue; }
+    let data;
+    try { data = JSON.parse(text); } catch { lastErr = new Error("proxy returned non-JSON"); continue; }
+    if (data && typeof data.detail === "string") throw new RbError(data.detail);   // "Invalid api key." / "Not found."
+    const design = String(data.design_id || (data.part && data.part.part_num) || "").trim();
+    if (design && design !== String(elementId)) {
+      const ld = data.color && data.color.external_ids && data.color.external_ids.LDraw;
+      const color = ld && ld.ext_ids && ld.ext_ids.length ? parseInt(ld.ext_ids[0], 10) : NaN;
+      return { design, color: Number.isFinite(color) ? color : null };
+    }
+    lastErr = new Error("unexpected response");
+  }
+  throw lastErr || new Error("all proxies failed");
+}
+
+// Resolve an element ID, then load the resulting design in its colour.
+function resolveAndLoad(elementId) {
+  setStatus("loading", `Recognising element ${elementId} via Rebrickable…`);
+  return resolveElement(elementId).then(r => {
+    state.fromElement = elementId;
+    if (r.color != null) { state.color = r.color; markActive(); }
+    state.id = r.design; state.name = nameOf(r.design); updateChip();
+    loadPart(r.design, r.color != null ? r.color : state.color);
+    if (!state.name) fetchName(r.design).then(n => {
+      if (state.id !== r.design) return;
+      state.name = n || `Part ${r.design}`;
+      if (state.loadedId === r.design) state.loadedName = state.name;
+      updateChip(); updateReadout();
+    });
+  });
+}
+
+// A LEGO element ID (6–7 digits) is a design + colour code, not an LDraw file
+// name. With a Rebrickable key we resolve it; otherwise we explain.
+function failMessage(id, keyPresent, err) {
+  if (/^\d{6,7}$/.test(id)) {
+    if (keyPresent)
+      return `Couldn’t resolve element “${id}”.<span class="sub">Rebrickable lookup failed` +
+        (err && err.message ? ` (${String(err.message).replace(/[<>]/g, "")})` : "") +
+        `. Check the key, that the element exists, and that the CORS proxy is reachable.</span>`;
+    return `“${id}” looks like a LEGO <b>element ID</b> (a design + colour).` +
+      `<span class="sub">Add a free <b>Rebrickable API key</b> below to auto-resolve element IDs, or enter the ` +
+      `<b>design ID</b> directly — e.g. 4211097 → <b>6222</b>.</span>`;
+  }
+  return `Couldn’t load part “${id}”.<span class="sub">Check the number, or your connection.</span>`;
+}
+
+function finalFail(id, keyPresent, err) {
+  setStatus("error", failMessage(id, keyPresent, err));
+  if (state.loadedId) {
+    state.id = state.loadedId; state.name = state.loadedName; state.fromElement = null;
+    updateChip(); updateReadout(); markActive();
+  } else {
+    setDownloadEnabled(false);
+  }
+}
+
+// On failure: if it's an element ID and a key is set, resolve via Rebrickable
+// and load the design ID; otherwise fall back to the last good part + explain.
+function onLoadFail(id) {
+  const key = rbKey();
+  const isElement = /^\d{6,7}$/.test(id);
+  const alreadyResolved = state.fromElement && id === state.id;   // a resolved design that itself failed
+  if (key && isElement && !alreadyResolved) {
+    resolveAndLoad(id).catch(err => finalFail(id, true, err));
+    return;
+  }
+  finalFail(id, key && isElement, null);
+}
+
+// Load part `id` coloured with LDraw colour `code` by wrapping it in a tiny
+// in-memory model — the idiomatic way to render one part in a chosen colour.
+// A sequence guard drops stale loads (rapid clicks); a timeout covers a
+// referenced sub-part that never resolves.
+let loadSeq = 0;
+function loadPart(id, code, quiet) {
+  const seq = ++loadSeq;
+  if (!quiet) setStatus("loading", `Loading part ${id}…`);
+  const doc = `0 FILE main.ldr\n1 ${code} 0 0 0 1 0 0 0 1 0 0 0 1 ${id}.dat\n`;
+  const url = URL.createObjectURL(new Blob([doc], { type: "text/plain" }));
+  let done = false;
+  const finish = () => { done = true; clearTimeout(timer); URL.revokeObjectURL(url); };
+  const timer = setTimeout(() => {
+    if (done || seq !== loadSeq) return;
+    finish();
+    onLoadFail(id);
+  }, 20000);
+  loader.load(url, g => {
+    if (seq !== loadSeq) { finish(); disposeTree(g); return; }
+    finish();
+    if (meshCount(g) === 0) { disposeTree(g); onLoadFail(id); return; }
+    placePart(g);
+    state.loadedId = id; state.loadedName = state.name;
+    setStatus("ok");
+    setDownloadEnabled(true);
+  }, undefined, () => {
+    if (seq !== loadSeq) { finish(); return; }
+    finish();
+    onLoadFail(id);
+  });
+}
+
+/* ---------- STL export (mm, Z-up, resting on z = 0) ---------- */
+function exportSTL() {
+  if (!group || !state.loadedId) return;
+  const root = new THREE.Group();
+  const clone = group.clone(true);               // shares geometry; display group untouched
+  root.add(clone);
+  root.scale.setScalar(LDU_MM);                  // LDU → mm
+  root.rotation.x = Math.PI / 2;                 // display Y-up → STL Z-up
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root);
+  root.position.z -= box.min.z;                  // sit on the bed
+  root.updateMatrixWorld(true);
+
+  const data = new STLExporter().parse(root, { binary: true });
+  const blob = new Blob([data], { type: "model/stl" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const slug = (state.loadedName || "part").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  a.href = url; a.download = `${state.loadedId}-${slug}.stl`; a.click();
+  URL.revokeObjectURL(url);
+
+  document.querySelectorAll(".dl").forEach(b => {
+    b.textContent = "Saved"; b.classList.add("done");
+    setTimeout(() => { b.textContent = b.dataset.label; b.classList.remove("done"); }, 1400);
+  });
+}
+
+/* ---------- part name lookup (real description for any number) ---------- */
+async function fetchName(id) {
+  try {
+    const r = await fetch(LIB + "parts/" + id + ".dat");
+    if (!r.ok) return null;
+    const first = (await r.text()).split("\n")[0].replace(/^0\s+/, "").trim();
+    return first && !/^~?Moved/i.test(first) ? first.replace(/\s{2,}/g, " ") : null;
+  } catch { return null; }
+}
+
+/* ---------- selection ---------- */
+function selectPart(id, name) {
+  state.fromElement = null;
+  // A 7-digit number with a key set is almost certainly an element ID — resolve
+  // it up front so it's recognised immediately as the Rebrickable element.
+  if (rbKey() && /^\d{7}$/.test(id)) {
+    state.id = id; state.name = null; updateChip(); markActive();
+    resolveAndLoad(id).catch(err => finalFail(id, true, err));
+    return;
+  }
+  state.id = id;
+  state.name = name || nameOf(id);
+  updateChip();
+  markActive();
+  loadPart(id, state.color);
+  if (!state.name) fetchName(id).then(n => {
+    if (state.id !== id) return;
+    state.name = n || `Part ${id}`;
+    if (state.loadedId === id) state.loadedName = state.name;   // keep STL filename in sync
+    updateChip(); updateReadout();
+  });
+}
+
+/* ---------- UI ---------- */
+function setStatus(kind, msg) {
+  const s = $("status");
+  if (kind === "ok") { s.className = "status"; return; }
+  s.className = "status show" + (kind === "error" ? " error" : "");
+  s.querySelector(".status-msg").innerHTML = msg;
+}
+function setDownloadEnabled(on) { document.querySelectorAll(".dl").forEach(b => b.disabled = !on); }
+
+function updateReadout() {
+  $("roName").textContent = state.name ? `#${state.id} · ${state.name}` : `#${state.id}`;
+  const s = state.sizeMM;
+  $("roDims").textContent = group
+    ? `${s.x.toFixed(1)} × ${s.z.toFixed(1)} × ${s.y.toFixed(1)} mm · ${COLORS.find(c => c[0] === state.color)[2]}`
+    : "—";
+}
+function updateChip() {
+  const base = state.name ? `<span class="num">#${state.id}</span> · ${state.name}` : `<span class="num">#${state.id}</span>`;
+  const from = state.fromElement ? ` <span style="color:var(--muted);font-weight:500">· from #${state.fromElement}</span>` : "";
+  $("chip").innerHTML = base + from;
+}
+
+function buildSwatches() {
+  COLORS.forEach(([code, hex, name]) => {
+    const s = document.createElement("div");
+    s.className = "sw" + (code === state.color ? " active" : "");
+    s.style.background = hex; s.title = name; s.dataset.code = code;
+    s.onclick = () => {
+      state.color = code; markActive();
+      if (group) loadPart(state.id, code, true);   // quiet reload in the new colour
+      updateReadout();
+    };
+    $("swatches").append(s);
+  });
+}
+
+function partRow(id, name, cat) {
+  const b = document.createElement("button");
+  b.className = "part"; b.dataset.id = id;
+  b.innerHTML =
+    `<div class="part-ico">${CAT_ICON[cat] || "🧱"}</div>` +
+    `<div><div class="part-name"><span class="n">#${id}</span> ${name}</div>` +
+    `<div class="part-sub">${cat}</div></div><div class="go">›</div>`;
+  b.onclick = () => selectPart(id, name);
+  return b;
+}
+
+let results = [], cur = -1;
+function highlight() {
+  results.forEach((b, i) => b.classList.toggle("key", i === cur));
+  if (cur >= 0 && results[cur]) results[cur].scrollIntoView({ block: "nearest" });
+}
+
+function buildCatalog() { renderResults(); }
+
+function renderResults() {
+  const raw = $("search").value.trim();
+  const q = raw.toLowerCase();
+  const box = $("results");
+  box.textContent = ""; results = [];
+
+  if (!q) {
+    for (const cat of CAT_ORDER) {
+      const rows = CATALOG.filter(c => c[2] === cat);
+      if (!rows.length) continue;
+      const head = document.createElement("div");
+      head.className = "panel-title"; head.style.margin = "10px 8px 6px"; head.textContent = cat;
+      box.append(head);
+      rows.forEach(([id, name, c]) => { const r = partRow(id, name, c); box.append(r); results.push(r); });
+    }
+  } else {
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const score = c => c[0] === q ? 0 : c[0].startsWith(q) ? 1 : c[0].includes(q) ? 2 : 3;
+    const list = CATALOG
+      .filter(c => tokens.every(t => (c[0] + " " + c[1].toLowerCase() + " " + c[2].toLowerCase()).includes(t)))
+      .sort((a, b) => score(a) - score(b));
+    list.forEach(([id, name, c]) => { const r = partRow(id, name, c); box.append(r); results.push(r); });
+
+    // Any part number loads, catalogued or not.
+    const isNum = /^[0-9]{1,7}[a-z]?$/i.test(raw);
+    if (isNum && !CATALOG.some(c => c[0].toLowerCase() === q)) {
+      const b = document.createElement("button");
+      b.className = "part"; b.dataset.id = raw;
+      b.innerHTML =
+        `<div class="part-ico">🔎</div><div><div class="part-name">Load part <span class="n">#${raw}</span></div>` +
+        `<div class="part-sub">Fetch from the LDraw library</div></div><div class="go">›</div>`;
+      b.onclick = () => selectPart(raw, null);
+      box.append(b); results.unshift(b);   // make it the default Enter target
+    }
+
+    if (!results.length) {
+      const m = document.createElement("div");
+      m.className = "note"; m.style.margin = "6px 2px 2px";
+      m.innerHTML = `No match. Type an exact <b>part number</b> (e.g. 3001), or a name like <b>slope</b> or <b>plate 2×4</b>.`;
+      box.append(m);
+    }
+  }
+  cur = results.length ? 0 : -1;
+  highlight();
+}
+
+function markActive() {
+  document.querySelectorAll("#results .part").forEach(b => b.classList.toggle("active", b.dataset.id === state.id));
+  document.querySelectorAll(".sw").forEach(s => s.classList.toggle("active", +s.dataset.code === state.color));
+}
+
+function wireUI() {
+  // Element-lookup settings persist locally (best-effort — file:// may block it).
+  $("rbKey").value = lsGet(LS_KEY);
+  $("rbProxy").value = lsGet(LS_PROXY);
+  $("rbKey").addEventListener("change", () => lsSet(LS_KEY, rbKey()));
+  $("rbProxy").addEventListener("change", () => lsSet(LS_PROXY, ($("rbProxy").value || "").trim()));
+  $("rbTest").addEventListener("click", async () => {
+    const st = $("rbStatus");
+    if (!rbKey()) { st.style.color = "var(--muted)"; st.textContent = "Enter an API key first."; return; }
+    st.style.color = "var(--muted)"; st.textContent = "Testing 4211097…";
+    try {
+      const r = await resolveElement("4211097");
+      st.style.color = "#30d158"; st.textContent = `✓ Connected · 4211097 → ${r.design}`;
+    } catch (e) {
+      st.style.color = "#ff9f0a"; st.textContent = "✗ " + (e && e.message || "failed");
+    }
+  });
+
+  const search = $("search");
+  search.addEventListener("input", renderResults);
+  search.addEventListener("keydown", e => {
+    if (e.key === "ArrowDown") { e.preventDefault(); cur = Math.min(results.length - 1, cur + 1); highlight(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); cur = Math.max(0, cur - 1); highlight(); }
+    else if (e.key === "Enter") { e.preventDefault(); if (results[cur]) results[cur].click(); }
+    else if (e.key === "Escape") { search.value = ""; renderResults(); }
+  });
+
+  document.querySelectorAll(".dl").forEach(b => b.onclick = exportSTL);
+
+  $("randomBtn").onclick = () => {
+    const [id, name] = CATALOG[Math.floor(Math.random() * CATALOG.length)];
+    search.value = ""; renderResults();
+    selectPart(id, name);
+  };
+}
+
+init().catch(err => {
+  clearTimeout(window.__boot);
+  setStatus("error",
+    "Couldn’t start the 3D engine.<span class='sub'>" +
+    String(err && err.message || err).replace(/[<>]/g, "") + "</span>");
+});
+</script>
+</body>
+</html>
