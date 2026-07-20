@@ -731,21 +731,24 @@ function makeGen(earcut) {
     return g;
   }
   function slope(L, W, Hp) {
+    // Real 45° slope brick (3040): thin 4-LDU vertical front face, a 45° sloped
+    // face rising to a full-height plateau that carries the studs.
     const g = V(), Wd = L*U, Dd = W*U, H = Hp*PLATE, hx = Wd/2, hz = Dd/2, seg = segFor(L*W);
-    const px = -hx + U, hb = PLATE;
+    const lip = 4, run = Math.min(H - lip, (L - 1) * U), px = hx - run;
     g.quad([-hx,0,-hz],[hx,0,-hz],[hx,0,hz],[-hx,0,hz]);
     g.quad([-hx,0,-hz],[-hx,0,hz],[-hx,H,hz],[-hx,H,-hz]);
-    g.quad([hx,0,hz],[hx,0,-hz],[hx,hb,-hz],[hx,hb,hz]);
-    const prof = [[-hx,0],[hx,0],[hx,hb],[px,H],[-hx,H]];
+    g.quad([hx,0,hz],[hx,0,-hz],[hx,lip,-hz],[hx,lip,hz]);
+    const prof = [[-hx,0],[hx,0],[hx,lip],[px,H],[-hx,H]];
     faceZ(g, prof, [], hz, +1); faceZ(g, prof, [], -hz, -1);
     g.quad([-hx,H,hz],[px,H,hz],[px,H,-hz],[-hx,H,-hz]);
-    g.quad([px,H,hz],[hx,hb,hz],[hx,hb,-hz],[px,H,-hz]);
+    g.quad([px,H,hz],[hx,lip,hz],[hx,lip,-hz],[px,H,-hz]);
     addStuds(g, L, W, hx, hz, H, seg, (x) => x < px);
     return g;
   }
   function arch(L, W, Hp) {
+    // Real arch (3659): chunky solid legs at each end, a curved soffit, studs on top.
     const g = V(), Wd = L*U, Dd = W*U, H = Hp*PLATE, hx = Wd/2, hz = Dd/2, seg = 28;
-    const as = hx - WALL, yp = Math.min(H - PLATE, as), arc = [];
+    const as = Math.max(12, hx - 16), yp = Math.min(H - 4, as), arc = [];
     for (let s = 0; s <= seg; s++) { const t = Math.PI - Math.PI*s/seg; arc.push([as*Math.cos(t), yp*Math.sin(t)]); }
     const outline = [[-hx,0], ...arc, [hx,0], [hx,H], [-hx,H]];
     faceZ(g, outline, [], hz, +1); faceZ(g, outline, [], -hz, -1);
