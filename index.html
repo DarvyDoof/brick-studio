@@ -615,6 +615,28 @@ function makeGen(earcut) {
       }
     }
   };
+  // open-bottom recess in one end column x∈[x0,x1] (a single stud wide), z∈[-hz,hz]
+  // (Wz studs deep) — the anti-stud hollow that lets an arch leg clutch a stud below
+  const hollowLeg = (g, x0, x1, hz, Wz, H, seg) => {
+    const ix0 = x0 + WALL, ix1 = x1 - WALL, iz = hz - WALL, cav = Math.max(0, H - ROOF), cx = (x0 + x1) / 2;
+    if (ix1 <= ix0 || iz <= 0 || cav <= 2) { g.quad([x0,0,-hz],[x1,0,-hz],[x1,0,hz],[x0,0,hz]); return; }
+    g.quad([x0,0,-hz],[x1,0,-hz],[ix1,0,-iz],[ix0,0,-iz]);
+    g.quad([ix0,0,iz],[ix1,0,iz],[x1,0,hz],[x0,0,hz]);
+    g.quad([x0,0,-hz],[ix0,0,-iz],[ix0,0,iz],[x0,0,hz]);
+    g.quad([ix1,0,-iz],[x1,0,-hz],[x1,0,hz],[ix1,0,iz]);
+    g.quad([ix1,0,iz],[ix0,0,iz],[ix0,cav,iz],[ix1,cav,iz]);
+    g.quad([ix0,0,-iz],[ix1,0,-iz],[ix1,cav,-iz],[ix0,cav,-iz]);
+    g.quad([ix1,0,-iz],[ix1,0,iz],[ix1,cav,iz],[ix1,cav,-iz]);
+    g.quad([ix0,0,iz],[ix0,0,-iz],[ix0,cav,-iz],[ix0,cav,iz]);
+    g.quad([ix0,cav,-iz],[ix1,cav,-iz],[ix1,cav,iz],[ix0,cav,iz]);
+    if (cav > 1.5 && Wz > 1) {
+      const top = cav + OV;
+      for (let j = 1; j < Wz; j++) {
+        const tz = -hz + j*U, lo = ringY(cx, tz, PR, 0, seg), hi = ringY(cx, tz, PR, top, seg);
+        wallY(g, lo, hi, seg, true); discY(g, hi, [cx, top, tz], seg, true); discY(g, lo, [cx, 0, tz], seg, false);
+      }
+    }
+  };
   // earcut a face at constant z, optional circular holes; sign flips winding/normal
   const faceZ = (g, outer, holes, zc, sign) => {
     const flat = [], holeIdx = [];
@@ -748,15 +770,15 @@ function makeGen(earcut) {
   function arch(L, W, Hp) {
     // Real arch (3659): chunky solid legs at each end, a curved soffit, studs on top.
     const g = V(), Wd = L*U, Dd = W*U, H = Hp*PLATE, hx = Wd/2, hz = Dd/2, seg = 28;
-    const as = Math.max(12, hx - 16), yp = Math.min(H - 4, as), arc = [];
+    const as = hx - U, yp = Math.min(H - 4, as), arc = [];   // one-stud leg at each end
     for (let s = 0; s <= seg; s++) { const t = Math.PI - Math.PI*s/seg; arc.push([as*Math.cos(t), yp*Math.sin(t)]); }
     const outline = [[-hx,0], ...arc, [hx,0], [hx,H], [-hx,H]];
     faceZ(g, outline, [], hz, +1); faceZ(g, outline, [], -hz, -1);
     g.quad([-hx,0,-hz],[-hx,0,hz],[-hx,H,hz],[-hx,H,-hz]);
     g.quad([hx,0,hz],[hx,0,-hz],[hx,H,-hz],[hx,H,hz]);
     g.quad([-hx,H,hz],[hx,H,hz],[hx,H,-hz],[-hx,H,-hz]);
-    g.quad([-hx,0,-hz],[-as,0,-hz],[-as,0,hz],[-hx,0,hz]);
-    g.quad([as,0,-hz],[hx,0,-hz],[hx,0,hz],[as,0,hz]);
+    hollowLeg(g, -hx, -as, hz, W, H, seg);   // hollow undersides so the legs clutch studs below
+    hollowLeg(g, as, hx, hz, W, H, seg);
     for (let i = 0; i < arc.length - 1; i++) {
       const p = arc[i], q = arc[i + 1];
       const Pf = [p[0],p[1],hz], Qf = [q[0],q[1],hz], Pb = [p[0],p[1],-hz], Qb = [q[0],q[1],-hz];
