@@ -284,6 +284,7 @@ input[type=range]::-moz-range-thumb {
 <header class="glass">
   <div class="logo"><span class="logo-mark"></span> Brick Studio</div>
   <div class="spacer"></div>
+  <button class="btn" id="flipBtn" aria-pressed="false" title="Flip the piece upside down">Flip ⇅</button>
   <button class="btn" id="randomBtn">Random part</button>
   <button class="btn tint dl" data-label="Download STL" id="dlBtn" disabled>Download STL</button>
 </header>
@@ -405,7 +406,7 @@ const CAT_ICON = { Bricks:"🧱", Plates:"🟨", Tiles:"⬜", Slopes:"🔺", Cur
 const $ = id => document.getElementById(id);
 const nameOf = id => { const p = CATALOG.find(c => c[0] === id); return p ? p[1] : null; };
 
-const state = { id: null, name: null, loadedId: null, loadedName: null, fromElement: null, custom: false, color: 4, sizeMM: new THREE.Vector3() };
+const state = { id: null, name: null, loadedId: null, loadedName: null, fromElement: null, custom: false, flipped: false, color: 4, sizeMM: new THREE.Vector3() };
 const custom = { type: "brick", len: 4, wid: 2, hgt: 3, dia: 2 };   // parametric custom part
 const hexOf = code => (COLORS.find(c => c[0] === code) || COLORS[0])[1];
 
@@ -501,7 +502,9 @@ function disposeTree(obj) {
 
 function placePart(g, ldraw = true) {
   if (group) { scene.remove(group); disposeTree(group); }
-  if (ldraw) g.rotation.x = Math.PI;              // LDraw is Y-down → Y-up; custom is already Y-up
+  g.userData.ldraw = ldraw;
+  // LDraw is Y-down → Y-up; custom is already Y-up. An extra π flips it upside down.
+  g.rotation.x = (ldraw ? Math.PI : 0) + (state.flipped ? Math.PI : 0);
   g.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(g);
   const size = new THREE.Vector3(), center = new THREE.Vector3();
@@ -514,6 +517,22 @@ function placePart(g, ldraw = true) {
   state.sizeMM.copy(size).multiplyScalar(LDU_MM);
   frame();
   updateReadout();
+}
+
+// Flip the current piece upside down (view only) without rebuilding it.
+function setFlip(on) {
+  state.flipped = on;
+  const btn = $("flipBtn");
+  if (btn) { btn.setAttribute("aria-pressed", on ? "true" : "false"); btn.classList.toggle("tint", on); }
+  if (!group) return;
+  const base = group.userData.ldraw ? Math.PI : 0;
+  group.rotation.x = base + (on ? Math.PI : 0);
+  group.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(group), center = new THREE.Vector3();
+  box.getCenter(center);
+  group.position.set(-center.x, -center.y, -center.z);
+  group.updateMatrixWorld(true);
+  frame();
 }
 
 function meshCount(g) { let n = 0; g.traverse(o => { if (o.isMesh) n++; }); return n; }
@@ -1044,6 +1063,7 @@ function exportSTL() {
   if (!group || !state.loadedId) return;
   const root = new THREE.Group();
   const clone = group.clone(true);               // shares geometry; display group untouched
+  clone.rotation.x = group.userData.ldraw ? Math.PI : 0;   // ignore any view flip — always studs-up
   root.add(clone);
   root.scale.setScalar(LDU_MM);                  // LDU → mm
   root.rotation.x = Math.PI / 2;                 // display Y-up → STL Z-up
@@ -1295,6 +1315,8 @@ function wireUI() {
   }
 
   document.querySelectorAll(".dl").forEach(b => b.onclick = exportSTL);
+
+  $("flipBtn").onclick = () => setFlip(!state.flipped);
 
   $("randomBtn").onclick = () => {
     const [id, name] = CATALOG[Math.floor(Math.random() * CATALOG.length)];
